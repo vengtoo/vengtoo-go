@@ -1,13 +1,13 @@
 # AuthzX Go SDK
 
-Go client for [AuthzX](https://authzx.com) — works with both AuthzX Cloud and the local AuthzX Agent.
+Go client for [AuthzX](https://authzx.com) — works with both AuthzX Cloud and the AuthzX Agent.
 
-Current release: **v0.2.0** (adds OAuth2 Client Credentials support).
+Current release: **v0.3.0**
 
 ## Install
 
 ```bash
-go get github.com/authzx/authzx-go@v0.2.0
+go get github.com/authzx/authzx-go@v0.3.0
 ```
 
 ## Usage
@@ -112,8 +112,31 @@ authzx.NewClient(apiKey,
     authzx.WithBaseURL("http://localhost:8181"),  // Custom URL
     authzx.WithHTTPClient(customHTTPClient),       // Custom http.Client
     authzx.WithTimeout(5 * time.Second),           // Custom timeout
+    authzx.WithRetries(3),                         // Max retries on 5xx/429 (default: 2)
 )
 ```
+
+## Error Handling
+
+```go
+resp, err := client.Authorize(ctx, req)
+if err != nil {
+    if authzx.IsAuthError(err) {
+        // 401 — bad API key or expired token
+    }
+    if authzx.IsForbidden(err) {
+        // 403
+    }
+    if authzx.IsOAuthError(err) {
+        // bad client_id / client_secret
+    }
+    if authzx.IsServerError(err) {
+        // 5xx — retries exhausted
+    }
+}
+```
+
+The SDK automatically retries on 5xx and 429 responses (default: 2 retries with linear backoff). 4xx errors are never retried. With OAuth, a 401 triggers one token refresh before failing.
 
 ## Types
 
@@ -123,3 +146,5 @@ authzx.NewClient(apiKey,
 | `Resource` | `Type`, `ID`, `Attributes` |
 | `AuthorizeRequest` | `Subject`, `Resource`, `Action`, `Context` |
 | `AuthorizeResponse` | `Allowed`, `Reason`, `PolicyID`, `AccessPath` |
+| `Error` | `StatusCode`, `Message` |
+| `OAuthError` | `StatusCode`, `Code`, `Description` |
