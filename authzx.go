@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const defaultBaseURL = "https://api.authzx.com/v1"
+const defaultBaseURL = "https://api.authzx.com"
 
 // Client is the AuthzX SDK client.
 type Client struct {
