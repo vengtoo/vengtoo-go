@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	authzx "github.com/authzx/authzx-go"
+	authzx "github.com/vengtoo/vengtoo-go"
 )
 
 func main() {

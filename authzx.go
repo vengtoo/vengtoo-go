@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const defaultBaseURL = "https://api.authzx.com"
+const defaultBaseURL = "https://api.vengtoo.com"
 
 // Client is the AuthzX SDK client.
 type Client struct {
@@ -48,7 +48,7 @@ func WithRetries(n int) ClientOption {
 
 // WithOAuth configures OAuth2 Client Credentials authentication. The SDK will
 // exchange these credentials for a short-lived bearer token at
-// https://api.authzx.com/identity-srv/v1/oauth/token (or the URL set via
+// https://api.vengtoo.com/v1/oauth/token (or the URL set via
 // WithOAuthTokenURL), cache it in memory, and refresh it ~60s before expiry.
 // Mutually exclusive with providing an API key to NewClient.
 func WithOAuth(clientID, clientSecret string) ClientOption {

@@ -13,7 +13,7 @@ import (
 )
 
 // defaultTokenURL is the OAuth2 token endpoint for AuthzX Cloud.
-const defaultTokenURL = "https://api.authzx.com/v1/oauth/token"
+const defaultTokenURL = "https://api.vengtoo.com/v1/oauth/token"
 
 // refreshSkew is how long before expiry we proactively refresh a cached token.
 const refreshSkew = 60 * time.Second

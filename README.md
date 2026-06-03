@@ -1,13 +1,13 @@
-# AuthzX Go SDK
+# Vengtoo Go SDK
 
-Go client for [AuthzX](https://authzx.com) — works with both AuthzX Cloud and the AuthzX Agent.
+Go client for [Vengtoo](https://vengtoo.com) — works with both Vengtoo Cloud and the Vengtoo Agent.
 
-Current release: **v0.3.0**
+Current release: **v1.0.1**
 
 ## Install
 
 ```bash
-go get github.com/authzx/authzx-go@v0.3.0
+go get github.com/vengtoo/vengtoo-go@v1.0.1
 ```
 
 ## Usage
@@ -20,16 +20,16 @@ package main
 import (
     "context"
     "fmt"
-    authzx "github.com/authzx/authzx-go"
+    vengtoo "github.com/vengtoo/vengtoo-go"
 )
 
 func main() {
-    client := authzx.NewClient("azx_...")
+    client := vengtoo.NewClient("azx_...")
 
     allowed, err := client.Check(context.Background(),
-        authzx.Subject{ID: "user:123", Type: "user", Roles: []string{"editor"}},
+        vengtoo.Subject{ID: "user:123", Type: "user", Roles: []string{"editor"}},
         "read",
-        authzx.Resource{Type: "document", ID: "doc:456"},
+        vengtoo.Resource{Type: "document", ID: "doc:456"},
     )
     if err != nil {
         panic(err)
@@ -43,35 +43,35 @@ func main() {
 For service-to-service auth, use an OAuth2 client (`client_id` + `client_secret`, where the secret is prefixed `azx_cs_`). The SDK exchanges credentials at the token endpoint, caches the JWT in memory, and refreshes ~60s before expiry.
 
 ```go
-client := authzx.NewClient("",
-    authzx.WithOAuth("my-client-id", "azx_cs_..."),
+client := vengtoo.NewClient("",
+    vengtoo.WithOAuth("my-client-id", "azx_cs_..."),
 )
 ```
 
 Equivalent curl for the underlying token exchange:
 
 ```bash
-curl -X POST https://api.authzx.com/identity-srv/v1/oauth/token \
+curl -X POST https://api.vengtoo.com/identity-srv/v1/oauth/token \
   -d grant_type=client_credentials \
   -d client_id=my-client-id \
   -d client_secret=azx_cs_...
 ```
 
-Providing both an API key and `WithOAuth(...)` is rejected. A bad `client_id` / `client_secret` surfaces as a distinct `*authzx.OAuthError` (check with `authzx.IsOAuthError(err)`) with a message telling you to recheck your credentials.
+Providing both an API key and `WithOAuth(...)` is rejected. A bad `client_id` / `client_secret` surfaces as a distinct `*vengtoo.OAuthError` (check with `vengtoo.IsOAuthError(err)`) with a message telling you to recheck your credentials.
 
 ### Agent Mode (local)
 
 ```go
-client := authzx.NewClient("", authzx.WithBaseURL("http://localhost:8181"))
+client := vengtoo.NewClient("", vengtoo.WithBaseURL("http://localhost:8181"))
 ```
 
 ### Full Authorize Response
 
 ```go
-resp, err := client.Authorize(ctx, &authzx.AuthorizeRequest{
-    Subject:  authzx.Subject{ID: "user:123", Type: "user"},
-    Resource: authzx.Resource{Type: "document", ID: "doc:456"},
-    Action:   authzx.Action{Name: "read"},
+resp, err := client.Authorize(ctx, &vengtoo.AuthorizeRequest{
+    Subject:  vengtoo.Subject{ID: "user:123", Type: "user"},
+    Resource: vengtoo.Resource{Type: "document", ID: "doc:456"},
+    Action:   vengtoo.Action{Name: "read"},
     Context:  map[string]interface{}{"ip": "10.0.0.1"},
 })
 // resp.Decision (bool), resp.Context.Reason, resp.Context.PolicyID, resp.Context.AccessPath
@@ -87,12 +87,12 @@ mux.Handle("/documents/", client.HTTPMiddleware("document", "read", "X-User-ID")
 ### Gin Middleware
 
 ```go
-func AuthzMiddleware(client *authzx.Client, resourceType, action string) gin.HandlerFunc {
+func AuthzMiddleware(client *vengtoo.Client, resourceType, action string) gin.HandlerFunc {
     return func(c *gin.Context) {
         allowed, err := client.Check(c.Request.Context(),
-            authzx.Subject{ID: c.GetHeader("X-User-ID"), Type: "user"},
+            vengtoo.Subject{ID: c.GetHeader("X-User-ID"), Type: "user"},
             action,
-            authzx.Resource{Type: resourceType, ID: c.Param("id")},
+            vengtoo.Resource{Type: resourceType, ID: c.Param("id")},
         )
         if err != nil || !allowed {
             c.AbortWithStatusJSON(403, gin.H{"error": "forbidden"})
@@ -108,11 +108,11 @@ router.GET("/documents/:id", AuthzMiddleware(client, "document", "read"), handle
 ### Options
 
 ```go
-authzx.NewClient(apiKey,
-    authzx.WithBaseURL("http://localhost:8181"),  // Custom URL
-    authzx.WithHTTPClient(customHTTPClient),       // Custom http.Client
-    authzx.WithTimeout(5 * time.Second),           // Custom timeout
-    authzx.WithRetries(3),                         // Max retries on 5xx/429 (default: 2)
+vengtoo.NewClient(apiKey,
+    vengtoo.WithBaseURL("http://localhost:8181"),  // Custom URL
+    vengtoo.WithHTTPClient(customHTTPClient),       // Custom http.Client
+    vengtoo.WithTimeout(5 * time.Second),           // Custom timeout
+    vengtoo.WithRetries(3),                         // Max retries on 5xx/429 (default: 2)
 )
 ```
 
@@ -121,16 +121,16 @@ authzx.NewClient(apiKey,
 ```go
 resp, err := client.Authorize(ctx, req)
 if err != nil {
-    if authzx.IsAuthError(err) {
+    if vengtoo.IsAuthError(err) {
         // 401 — bad API key or expired token
     }
-    if authzx.IsForbidden(err) {
+    if vengtoo.IsForbidden(err) {
         // 403
     }
-    if authzx.IsOAuthError(err) {
+    if vengtoo.IsOAuthError(err) {
         // bad client_id / client_secret
     }
-    if authzx.IsServerError(err) {
+    if vengtoo.IsServerError(err) {
         // 5xx — retries exhausted
     }
 }
@@ -140,12 +140,12 @@ The SDK automatically retries on 5xx and 429 responses (default: 2 retries with 
 
 ## Types
 
-| Type | Fields |
-|------|--------|
-| `Subject` | `ID`, `Type`, `Attributes`, `Properties`, `Roles` |
-| `Resource` | `Type`, `ID`, `Attributes`, `Properties` |
-| `AuthorizeRequest` | `Subject`, `Resource`, `Action`, `Context` |
-| `AuthorizeResponse` | `Decision`, `Context *AuthorizeContext` |
-| `AuthorizeContext` | `Reason`, `ReasonCode`, `PolicyID`, `AccessPath` |
-| `Error` | `StatusCode`, `Message` |
-| `OAuthError` | `StatusCode`, `Code`, `Description` |
+| Type                | Fields                                            |
+| ------------------- | ------------------------------------------------- |
+| `Subject`           | `ID`, `Type`, `Attributes`, `Properties`, `Roles` |
+| `Resource`          | `Type`, `ID`, `Attributes`, `Properties`          |
+| `AuthorizeRequest`  | `Subject`, `Resource`, `Action`, `Context`        |
+| `AuthorizeResponse` | `Decision`, `Context *AuthorizeContext`           |
+| `AuthorizeContext`  | `Reason`, `ReasonCode`, `PolicyID`, `AccessPath`  |
+| `Error`             | `StatusCode`, `Message`                           |
+| `OAuthError`        | `StatusCode`, `Code`, `Description`               |

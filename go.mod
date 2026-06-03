@@ -1,3 +1,3 @@
-module github.com/authzx/authzx-go
+module github.com/vengtoo/vengtoo-go
 
 go 1.25
