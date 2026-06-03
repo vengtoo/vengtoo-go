@@ -13,7 +13,7 @@ import (
 
 const defaultBaseURL = "https://api.vengtoo.com"
 
-// Client is the AuthzX SDK client.
+// Client is the Vengtoo SDK client.
 type Client struct {
 	apiKey     string
 	baseURL    string
@@ -62,7 +62,7 @@ func WithOAuth(clientID, clientSecret string) ClientOption {
 }
 
 // WithOAuthTokenURL overrides the OAuth2 token endpoint URL (useful for tests
-// and self-hosted AuthzX installations). Has no effect unless WithOAuth is
+// and self-hosted Vengtoo installations). Has no effect unless WithOAuth is
 // also supplied.
 func WithOAuthTokenURL(tokenURL string) ClientOption {
 	return func(c *Client) {
@@ -72,7 +72,7 @@ func WithOAuthTokenURL(tokenURL string) ClientOption {
 	}
 }
 
-// NewClient creates a new AuthzX client.
+// NewClient creates a new Vengtoo client.
 // For cloud with API key: authzx.NewClient("azx_...")
 // For cloud with OAuth:   authzx.NewClient("", authzx.WithOAuth("client-id", "azx_cs_..."))
 // For local agent:        authzx.NewClient("", authzx.WithBaseURL("http://localhost:8181"))
