@@ -1,4 +1,4 @@
-package authzx
+package vengtoo
 
 import (
 	"net/http"
@@ -36,12 +36,12 @@ func (c *Client) HTTPMiddleware(resourceType, action, subjectIDHeader string) fu
 
 // For Gin users — no gin dependency needed, just wrap Check() directly:
 //
-//	func AuthzMiddleware(client *authzx.Client, resourceType, action string) gin.HandlerFunc {
+//	func AuthzMiddleware(client *vengtoo.Client, resourceType, action string) gin.HandlerFunc {
 //	    return func(c *gin.Context) {
 //	        allowed, err := client.Check(c.Request.Context(),
-//	            authzx.Subject{ID: c.GetHeader("X-User-ID"), Type: "user"},
+//	            vengtoo.Subject{ID: c.GetHeader("X-User-ID"), Type: "user"},
 //	            action,
-//	            authzx.Resource{Type: resourceType, ID: c.Param("id")},
+//	            vengtoo.Resource{Type: resourceType, ID: c.Param("id")},
 //	        )
 //	        if err != nil || !allowed {
 //	            c.AbortWithStatusJSON(403, gin.H{"error": "forbidden"})

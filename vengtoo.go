@@ -1,4 +1,4 @@
-package authzx
+package vengtoo
 
 import (
 	"bytes"
@@ -73,9 +73,9 @@ func WithOAuthTokenURL(tokenURL string) ClientOption {
 }
 
 // NewClient creates a new Vengtoo client.
-// For cloud with API key: authzx.NewClient("azx_...")
-// For cloud with OAuth:   authzx.NewClient("", authzx.WithOAuth("client-id", "azx_cs_..."))
-// For local agent:        authzx.NewClient("", authzx.WithBaseURL("http://localhost:8181"))
+// For cloud with API key: vengtoo.NewClient("azx_...")
+// For cloud with OAuth:   vengtoo.NewClient("", vengtoo.WithOAuth("client-id", "azx_cs_..."))
+// For local agent:        vengtoo.NewClient("", vengtoo.WithBaseURL("http://localhost:8181"))
 func NewClient(apiKey string, opts ...ClientOption) *Client {
 	c := &Client{
 		apiKey:     apiKey,
@@ -108,7 +108,7 @@ func NewClientWithOptions(opts ...ClientOption) (*Client, error) {
 // agent" usage pattern (NewClient("", WithBaseURL(...))).
 func (c *Client) validateAuth() error {
 	if c.apiKey != "" && c.oauth != nil {
-		return errors.New("authzx: configure either an API key or OAuth client credentials, not both")
+		return errors.New("vengtoo: configure either an API key or OAuth client credentials, not both")
 	}
 	return nil
 }
@@ -159,7 +159,7 @@ func (c *Client) Authorize(ctx context.Context, req *AuthorizeRequest) (*Authori
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("authzx: failed to marshal request: %w", err)
+		return nil, fmt.Errorf("vengtoo: failed to marshal request: %w", err)
 	}
 
 	// OAuth flow gets exactly one 401-triggered refresh+retry across the
@@ -174,7 +174,7 @@ func (c *Client) Authorize(ctx context.Context, req *AuthorizeRequest) (*Authori
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.url(), bytes.NewReader(body))
 		if err != nil {
-			return nil, fmt.Errorf("authzx: failed to create request: %w", err)
+			return nil, fmt.Errorf("vengtoo: failed to create request: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
 
@@ -188,21 +188,21 @@ func (c *Client) Authorize(ctx context.Context, req *AuthorizeRequest) (*Authori
 
 		resp, err := c.httpClient.Do(httpReq)
 		if err != nil {
-			lastErr = fmt.Errorf("authzx: request failed: %w", err)
+			lastErr = fmt.Errorf("vengtoo: request failed: %w", err)
 			continue
 		}
 
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			lastErr = fmt.Errorf("authzx: failed to read response: %w", err)
+			lastErr = fmt.Errorf("vengtoo: failed to read response: %w", err)
 			continue
 		}
 
 		if resp.StatusCode == http.StatusOK {
 			var result AuthorizeResponse
 			if err := json.Unmarshal(respBody, &result); err != nil {
-				return nil, fmt.Errorf("authzx: failed to parse response: %w", err)
+				return nil, fmt.Errorf("vengtoo: failed to parse response: %w", err)
 			}
 			return &result, nil
 		}
@@ -237,15 +237,15 @@ func (c *Client) AuthorizeBatch(ctx context.Context, req *BatchEvaluationRequest
 		return nil, err
 	}
 	if len(req.Evaluations) == 0 {
-		return nil, fmt.Errorf("authzx: batch request requires at least one evaluation")
+		return nil, fmt.Errorf("vengtoo: batch request requires at least one evaluation")
 	}
 	if len(req.Evaluations) > 50 {
-		return nil, fmt.Errorf("authzx: batch request exceeds maximum of 50 evaluations")
+		return nil, fmt.Errorf("vengtoo: batch request exceeds maximum of 50 evaluations")
 	}
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("authzx: failed to marshal request: %w", err)
+		return nil, fmt.Errorf("vengtoo: failed to marshal request: %w", err)
 	}
 
 	oauthRetried := false
@@ -257,7 +257,7 @@ func (c *Client) AuthorizeBatch(ctx context.Context, req *BatchEvaluationRequest
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.batchURL(), bytes.NewReader(body))
 		if err != nil {
-			return nil, fmt.Errorf("authzx: failed to create request: %w", err)
+			return nil, fmt.Errorf("vengtoo: failed to create request: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
 
@@ -271,21 +271,21 @@ func (c *Client) AuthorizeBatch(ctx context.Context, req *BatchEvaluationRequest
 
 		resp, err := c.httpClient.Do(httpReq)
 		if err != nil {
-			lastErr = fmt.Errorf("authzx: request failed: %w", err)
+			lastErr = fmt.Errorf("vengtoo: request failed: %w", err)
 			continue
 		}
 
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			lastErr = fmt.Errorf("authzx: failed to read response: %w", err)
+			lastErr = fmt.Errorf("vengtoo: failed to read response: %w", err)
 			continue
 		}
 
 		if resp.StatusCode == http.StatusOK {
 			var result BatchEvaluationResponse
 			if err := json.Unmarshal(respBody, &result); err != nil {
-				return nil, fmt.Errorf("authzx: failed to parse response: %w", err)
+				return nil, fmt.Errorf("vengtoo: failed to parse response: %w", err)
 			}
 			return &result, nil
 		}

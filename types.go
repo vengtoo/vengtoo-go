@@ -1,4 +1,4 @@
-package authzx
+package vengtoo
 
 // Subject represents the entity performing the action.
 type Subject struct {

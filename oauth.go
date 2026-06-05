@@ -1,4 +1,4 @@
-package authzx
+package vengtoo
 
 import (
 	"context"
@@ -70,25 +70,25 @@ func (o *oauthConfig) fetchLocked(ctx context.Context, hc *http.Client) (string,
 
 	req, err := http.NewRequestWithContext(ctx, "POST", o.tokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", fmt.Errorf("authzx: failed to create token request: %w", err)
+		return "", fmt.Errorf("vengtoo: failed to create token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("authzx: OAuth token request failed: %w", err)
+		return "", fmt.Errorf("vengtoo: OAuth token request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("authzx: failed to read OAuth token response: %w", err)
+		return "", fmt.Errorf("vengtoo: failed to read OAuth token response: %w", err)
 	}
 
 	if resp.StatusCode == http.StatusOK {
 		var tr tokenResponse
 		if err := json.Unmarshal(body, &tr); err != nil {
-			return "", fmt.Errorf("authzx: failed to parse OAuth token response: %w", err)
+			return "", fmt.Errorf("vengtoo: failed to parse OAuth token response: %w", err)
 		}
 		if tr.AccessToken == "" {
 			return "", &OAuthError{Code: "invalid_response", Description: "token endpoint returned empty access_token"}

@@ -1,4 +1,4 @@
-package authzx
+package vengtoo
 
 import "fmt"
 
@@ -9,7 +9,7 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("authzx: API error (status %d): %s", e.StatusCode, e.Message)
+	return fmt.Sprintf("vengtoo: API error (status %d): %s", e.StatusCode, e.Message)
 }
 
 // OAuthError represents a failure during the OAuth2 Client Credentials token
@@ -24,12 +24,12 @@ type OAuthError struct {
 
 func (e *OAuthError) Error() string {
 	if e.Code == "invalid_client" {
-		return "authzx: OAuth authentication failed: check client_id/client_secret"
+		return "vengtoo: OAuth authentication failed: check client_id/client_secret"
 	}
 	if e.Description != "" {
-		return fmt.Sprintf("authzx: OAuth token exchange failed (%s): %s", e.Code, e.Description)
+		return fmt.Sprintf("vengtoo: OAuth token exchange failed (%s): %s", e.Code, e.Description)
 	}
-	return fmt.Sprintf("authzx: OAuth token exchange failed (%s)", e.Code)
+	return fmt.Sprintf("vengtoo: OAuth token exchange failed (%s)", e.Code)
 }
 
 // IsOAuthError returns true if err is an *OAuthError.
