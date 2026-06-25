@@ -1,13 +1,13 @@
 # Vengtoo Go SDK
 
-Go client for [Vengtoo](https://vengtoo.com) — works with both Vengtoo Cloud and the Vengtoo Agent.
+> **Early access** — `0.x` releases may have breaking changes. Pin your version if stability matters.
 
-Current release: **v1.0.1**
+Go client for [Vengtoo](https://vengtoo.com) — works with both Vengtoo Cloud and the Vengtoo Agent.
 
 ## Install
 
 ```bash
-go get github.com/vengtoo/vengtoo-go@v1.0.1
+go get github.com/vengtoo/vengtoo-go@v0.1.0
 ```
 
 ## Usage

@@ -1,19 +1,20 @@
 package vengtoo
 
+import "time"
+
 // Subject represents the entity performing the action.
 type Subject struct {
-	ID         string                 `json:"id"`
+	ID         string                 `json:"id,omitempty"`
+	ExternalID string                 `json:"external_id,omitempty"`
 	Type       string                 `json:"type,omitempty"`
-	Attributes map[string]interface{} `json:"attributes,omitempty"`
 	Properties map[string]interface{} `json:"properties,omitempty"`
-	Roles      []string               `json:"roles,omitempty"`
 }
 
 // Resource represents the target of the action.
 type Resource struct {
-	ID         string                 `json:"id"`
+	ID         string                 `json:"id,omitempty"`
+	ExternalID string                 `json:"external_id,omitempty"`
 	Type       string                 `json:"type,omitempty"`
-	Attributes map[string]interface{} `json:"attributes,omitempty"`
 	Properties map[string]interface{} `json:"properties,omitempty"`
 }
 
@@ -37,6 +38,11 @@ type AuthorizeContext struct {
 	ReasonCode string `json:"reason_code,omitempty"`
 	PolicyID   string `json:"policy_id,omitempty"`
 	AccessPath string `json:"access_path,omitempty"`
+	// HITL fields — present when reason_code is "authorization_pending".
+	AuthReqID  string `json:"auth_req_id,omitempty"`
+	ApprovalID string `json:"approval_id,omitempty"`
+	ExpiresIn  int    `json:"expires_in,omitempty"`
+	Interval   int    `json:"interval,omitempty"`
 }
 
 // AuthorizeResponse is the result of an authorization check.
@@ -73,4 +79,21 @@ type BatchEvaluationRequest struct {
 // BatchEvaluationResponse is the result of a batch authorization check.
 type BatchEvaluationResponse struct {
 	Evaluations []AuthorizeResponse `json:"evaluations"`
+}
+
+// Delegation represents an active or revoked delegation record.
+type Delegation struct {
+	ID          string     `json:"id"`
+	DelegateID  string     `json:"delegate_id"`
+	DelegatorID string     `json:"delegator_id"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+// CreateDelegationRequest creates a delegation so that delegate acts on behalf of delegator.
+type CreateDelegationRequest struct {
+	DelegateID  string     `json:"delegate_id"`
+	DelegatorID string     `json:"delegator_id"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 }

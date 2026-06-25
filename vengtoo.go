@@ -61,8 +61,8 @@ func WithOAuth(clientID, clientSecret string) ClientOption {
 	}
 }
 
-// WithOAuthTokenURL overrides the OAuth2 token endpoint URL (useful for tests
-// and self-hosted Vengtoo installations). Has no effect unless WithOAuth is
+// WithOAuthTokenURL overrides the OAuth2 token endpoint URL. Intended for
+// tests (point at a mock token server). Has no effect unless WithOAuth is
 // also supplied.
 func WithOAuthTokenURL(tokenURL string) ClientOption {
 	return func(c *Client) {
@@ -115,12 +115,16 @@ func (c *Client) validateAuth() error {
 
 // Check is a convenience method that returns just the boolean result.
 // It accepts action as a plain string for ergonomics and wraps it into an Action object internally.
-func (c *Client) Check(ctx context.Context, subject Subject, action string, resource Resource) (bool, error) {
-	resp, err := c.Authorize(ctx, &AuthorizeRequest{
+func (c *Client) Check(ctx context.Context, subject Subject, action string, resource Resource, reqCtx ...map[string]interface{}) (bool, error) {
+	req := &AuthorizeRequest{
 		Subject:  subject,
 		Resource: resource,
 		Action:   Action{Name: action},
-	})
+	}
+	if len(reqCtx) > 0 {
+		req.Context = reqCtx[0]
+	}
+	resp, err := c.Authorize(ctx, req)
 	if err != nil {
 		return false, err
 	}
@@ -156,8 +160,27 @@ func (c *Client) Authorize(ctx context.Context, req *AuthorizeRequest) (*Authori
 	if err := c.validateAuth(); err != nil {
 		return nil, err
 	}
+	if req.Subject.Type == "" {
+		return nil, errors.New("vengtoo: subject.type is required")
+	}
+	if req.Resource.Type == "" {
+		return nil, errors.New("vengtoo: resource.type is required")
+	}
 
-	body, err := json.Marshal(req)
+	// Default resource.id to "*" when neither id nor external_id is provided
+	// so the engine evaluates type-level policies rather than skipping them.
+	wireReq := req
+	if wireReq.Resource.ID == "" && wireReq.Resource.ExternalID == "" {
+		r := wireReq.Resource
+		r.ID = "*"
+		wireReq = &AuthorizeRequest{
+			Subject:  req.Subject,
+			Resource: r,
+			Action:   req.Action,
+			Context:  req.Context,
+		}
+	}
+	body, err := json.Marshal(wireReq)
 	if err != nil {
 		return nil, fmt.Errorf("vengtoo: failed to marshal request: %w", err)
 	}
@@ -243,7 +266,20 @@ func (c *Client) AuthorizeBatch(ctx context.Context, req *BatchEvaluationRequest
 		return nil, fmt.Errorf("vengtoo: batch request exceeds maximum of 50 evaluations")
 	}
 
-	body, err := json.Marshal(req)
+	// Normalize type-level resources: when neither id nor external_id is set,
+	// send id="*" so the engine evaluates type-level policies (mirrors Authorize).
+	wireEvals := make([]BatchEvalItem, len(req.Evaluations))
+	for i, item := range req.Evaluations {
+		if item.Resource != nil && item.Resource.ID == "" && item.Resource.ExternalID == "" {
+			r := *item.Resource
+			r.ID = "*"
+			item.Resource = &r
+		}
+		wireEvals[i] = item
+	}
+	wireReq := &BatchEvaluationRequest{Evaluations: wireEvals}
+
+	body, err := json.Marshal(wireReq)
 	if err != nil {
 		return nil, fmt.Errorf("vengtoo: failed to marshal request: %w", err)
 	}
@@ -308,6 +344,89 @@ func (c *Client) AuthorizeBatch(ctx context.Context, req *BatchEvaluationRequest
 	return nil, lastErr
 }
 
+// CreateDelegation grants delegate the ability to act on behalf of delegator.
+// The delegation is enforced server-side at every authorization check — the
+// delegate's effective permissions are the intersection of its own policies
+// and the delegator's policies (scope attenuation, not escalation).
+func (c *Client) CreateDelegation(ctx context.Context, req *CreateDelegationRequest) (*Delegation, error) {
+	if err := c.validateAuth(); err != nil {
+		return nil, err
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("vengtoo: failed to marshal delegation request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/delegations", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("vengtoo: failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	authVal, err := c.authHeader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if authVal != "" {
+		httpReq.Header.Set("Authorization", authVal)
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("vengtoo: delegation request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("vengtoo: failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		return nil, &Error{StatusCode: resp.StatusCode, Message: string(respBody)}
+	}
+
+	var delegation Delegation
+	if err := json.Unmarshal(respBody, &delegation); err != nil {
+		return nil, fmt.Errorf("vengtoo: failed to parse delegation response: %w", err)
+	}
+	return &delegation, nil
+}
+
+// RevokeDelegation revokes an existing delegation by ID. Once revoked, the
+// delegate immediately loses the delegator's permission scope.
+func (c *Client) RevokeDelegation(ctx context.Context, id string) error {
+	if err := c.validateAuth(); err != nil {
+		return err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "DELETE", c.baseURL+"/v1/delegations/"+id, nil)
+	if err != nil {
+		return fmt.Errorf("vengtoo: failed to create request: %w", err)
+	}
+
+	authVal, err := c.authHeader(ctx)
+	if err != nil {
+		return err
+	}
+	if authVal != "" {
+		httpReq.Header.Set("Authorization", authVal)
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("vengtoo: revoke delegation request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return &Error{StatusCode: resp.StatusCode, Message: string(body)}
+	}
+	return nil
+}
+
 // CheckBatch is a convenience method that returns just the boolean decisions.
 func (c *Client) CheckBatch(ctx context.Context, req *BatchEvaluationRequest) ([]bool, error) {
 	resp, err := c.AuthorizeBatch(ctx, req)
@@ -319,4 +438,165 @@ func (c *Client) CheckBatch(ctx context.Context, req *BatchEvaluationRequest) ([
 		results[i] = eval.Decision
 	}
 	return results, nil
+}
+
+// PollingOptions configures AuthorizeWithPolling behavior.
+type PollingOptions struct {
+	// Timeout is how long to wait for human approval. Default: 5 minutes.
+	Timeout time.Duration
+	// MaxNetworkErrors is the max consecutive network failures before returning
+	// a polling_error result. Default: 3.
+	MaxNetworkErrors int
+	// OnPending is called once when the request first enters authorization_pending
+	// state. authReqID and expiresIn may be empty/zero if not returned by server.
+	OnPending func(authReqID string, expiresIn int)
+}
+
+// AuthorizeWithPolling is like Authorize but handles HITL polling automatically.
+//
+// If the initial response is authorization_pending, it waits for a human to
+// approve in the Vengtoo dashboard, polling at the server-recommended interval.
+// Returns an AuthorizeResponse in all cases — never returns an error for
+// pending/timeout/network errors, so every outcome is handled uniformly.
+//
+// Distinct reason_codes in the returned context:
+//
+//	"approval_timeout" — no human responded within the timeout
+//	"polling_error"    — network errors persisted beyond MaxNetworkErrors retries
+func (c *Client) AuthorizeWithPolling(ctx context.Context, req *AuthorizeRequest, opts *PollingOptions) (*AuthorizeResponse, error) {
+	if opts == nil {
+		opts = &PollingOptions{}
+	}
+	timeout := opts.Timeout
+	if timeout == 0 {
+		timeout = 5 * time.Minute
+	}
+	maxNetworkErrors := opts.MaxNetworkErrors
+	if maxNetworkErrors == 0 {
+		maxNetworkErrors = 3
+	}
+
+	result, err := c.Authorize(ctx, req)
+	if err != nil {
+		return nil, err // propagate initial call errors
+	}
+	if result.Decision {
+		return result, nil
+	}
+
+	reasonCode := ""
+	if result.Context != nil {
+		reasonCode = result.Context.ReasonCode
+	}
+	if reasonCode != "authorization_pending" {
+		return result, nil
+	}
+
+	// Fire onPending once on first entering pending state.
+	if opts.OnPending != nil {
+		var authReqID string
+		var expiresIn int
+		if result.Context != nil {
+			authReqID = result.Context.AuthReqID
+			expiresIn = result.Context.ExpiresIn
+		}
+		opts.OnPending(authReqID, expiresIn)
+	}
+
+	deadline := time.Now().Add(timeout)
+	networkErrors := 0
+
+	for time.Now().Before(deadline) {
+		interval := 6 // default: 5s server + 1s buffer
+		if result.Context != nil && result.Context.Interval > 0 {
+			interval = result.Context.Interval + 1
+		}
+		select {
+		case <-ctx.Done():
+			return &AuthorizeResponse{
+				Decision: false,
+				Context:  &AuthorizeContext{ReasonCode: "approval_timeout"},
+			}, nil
+		case <-time.After(time.Duration(interval) * time.Second):
+		}
+
+		if time.Now().After(deadline) {
+			break
+		}
+
+		result, err = c.Authorize(ctx, req)
+		if err != nil {
+			networkErrors++
+			if networkErrors >= maxNetworkErrors {
+				return &AuthorizeResponse{
+					Decision: false,
+					Context:  &AuthorizeContext{ReasonCode: "polling_error"},
+				}, nil
+			}
+			backoff := time.Duration(min(networkErrors*2, 10)) * time.Second
+			select {
+			case <-ctx.Done():
+				return &AuthorizeResponse{Decision: false, Context: &AuthorizeContext{ReasonCode: "approval_timeout"}}, nil
+			case <-time.After(backoff):
+			}
+			continue
+		}
+		networkErrors = 0
+
+		if result.Decision {
+			return result, nil
+		}
+
+		pollCode := ""
+		if result.Context != nil {
+			pollCode = result.Context.ReasonCode
+		}
+		if pollCode == "slow_down" {
+			continue
+		}
+		if pollCode != "authorization_pending" {
+			return result, nil
+		}
+	}
+
+	return &AuthorizeResponse{
+		Decision: false,
+		Context:  &AuthorizeContext{ReasonCode: "approval_timeout"},
+	}, nil
+}
+
+// WithDelegation creates a delegation, calls fn with the delegation ID, then
+// always revokes the delegation — even if fn panics or returns an error.
+// This ensures the agent never retains access beyond the task boundary.
+//
+// Example:
+//
+//	err := client.WithDelegation(ctx, &vengtoo.CreateDelegationRequest{
+//	    DelegatorID: johnEntityID,
+//	    DelegateID:  workflowEntityID,
+//	}, func(delegationID string) error {
+//	    return runWorkflow(ctx)
+//	})
+func (c *Client) WithDelegation(ctx context.Context, req *CreateDelegationRequest, fn func(delegationID string) error) error {
+	d, err := c.CreateDelegation(ctx, req)
+	if err != nil {
+		return fmt.Errorf("vengtoo: failed to create delegation: %w", err)
+	}
+
+	var fnErr error
+	defer func() {
+		if rErr := c.RevokeDelegation(context.Background(), d.ID); rErr != nil && fnErr == nil {
+			fnErr = fmt.Errorf("vengtoo: failed to revoke delegation %s: %w", d.ID, rErr)
+		}
+	}()
+
+	fnErr = fn(d.ID)
+	return fnErr
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
